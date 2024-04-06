@@ -74,6 +74,7 @@ class LLaMAConfig(PretrainedConfig):
         intermediate_size=11008,
         num_hidden_layers=32,
         num_attention_heads=32,
+        num_key_value_heads=None,
         max_sequence_length=2048,
         rms_norm_eps=1e-6,
         initializer_range=0.02,
@@ -94,6 +95,9 @@ class LLaMAConfig(PretrainedConfig):
         self.intermediate_size = intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
+        if num_key_value_heads is None:
+            num_key_value_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
         self.max_sequence_length = max_sequence_length
         self.rms_norm_eps = rms_norm_eps
         self.use_cache = use_cache

@@ -1,5 +1,7 @@
 # LLaMA Jax
 
+**UPDATE: now with LLaMA-2 support!**
+
 This repository is a Huggingface compatible port of [LLaMA](https://ai.facebook.com/blog/large-language-model-llama-meta-ai/) ([arXiv](https://arxiv.org/abs/2302.13971v1)) models to Jax.
 In order to download the checkpoints and tokenizer for LLaMA, fill this [google form](https://forms.gle/jk851eBVbX1m5TAv5)
 

@@ -77,6 +77,17 @@ def apply_rotary_emb(
 
     return xq_out.astype(dtype), xk_out.astype(dtype)
 
+def repeat_kv(
+    hidden_states: jnp.ndarray,
+    n_rep: int,
+) -> jnp.ndarray:
+    batch, slen, num_key_value_heads, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states
+    hidden_states = hidden_states[:, :, :, None, :]
+    hidden_states = jnp.repeat(hidden_states, n_rep, axis=3)
+    return hidden_states.reshape(batch, slen, num_key_value_heads * n_rep, head_dim)
+
 class FlaxLLaMAAttention(nn.Module):
     config: LLaMAConfig
     dtype: jnp.dtype=jnp.float32
@@ -88,6 +99,8 @@ class FlaxLLaMAAttention(nn.Module):
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = self.embed_dim // self.num_heads
+        self.num_key_value_heads = config.num_key_value_heads
+        self.num_key_value_groups = self.num_heads // self.num_key_value_heads
 
         self.wq = nn.Dense(
             config.num_attention_heads*self.head_dim, 
@@ -98,7 +111,7 @@ class FlaxLLaMAAttention(nn.Module):
             precision=self.precision, 
         )
         self.wk = nn.Dense(
-            config.num_attention_heads*self.head_dim, 
+            config.num_key_value_heads*self.head_dim, 
             dtype=self.dtype, 
             param_dtype=self.param_dtype, 
             use_bias=False, 
@@ -106,7 +119,7 @@ class FlaxLLaMAAttention(nn.Module):
             precision=self.precision, 
         )
         self.wv = nn.Dense(
-            config.num_attention_heads*self.head_dim, 
+            config.num_key_value_heads*self.head_dim, 
             dtype=self.dtype, 
             param_dtype=self.param_dtype, 
             use_bias=False, 
@@ -132,8 +145,8 @@ class FlaxLLaMAAttention(nn.Module):
             dtype=self.dtype, 
         )
     
-    def _split_heads(self, hidden_states):
-        return hidden_states.reshape(hidden_states.shape[:2] + (self.num_heads, self.head_dim))
+    def _split_heads(self, hidden_states, num_heads):
+        return hidden_states.reshape(hidden_states.shape[:2] + (num_heads, self.head_dim))
 
     def _merge_heads(self, hidden_states):
         return hidden_states.reshape(hidden_states.shape[:2] + (self.embed_dim,))
@@ -181,9 +194,9 @@ class FlaxLLaMAAttention(nn.Module):
     ):
         xq, xk, xv = self.wq(hidden_states), self.wk(hidden_states), self.wv(hidden_states)
 
-        xq = self._split_heads(xq)
-        xk = self._split_heads(xk)
-        xv = self._split_heads(xv)
+        xq = self._split_heads(xq, self.num_heads)
+        xk = self._split_heads(xk, self.num_key_value_heads)
+        xv = self._split_heads(xv, self.num_key_value_heads)
 
         freqs_cis = jnp.take(self.freqs_cis, position_ids, axis=0)
 
@@ -221,6 +234,9 @@ class FlaxLLaMAAttention(nn.Module):
             jnp.full(attention_mask.shape, 0.0).astype(self.dtype),
             jnp.full(attention_mask.shape, jnp.finfo(self.dtype).min).astype(self.dtype),
         )
+
+        xk = repeat_kv(xk, self.num_key_value_groups)
+        xv = repeat_kv(xv, self.num_key_value_groups)
 
         # usual dot product attention
         attn_weights = dot_product_attention_weights(
@@ -672,7 +688,7 @@ class FlaxLLaMAForCausalLMModule(nn.Module):
 class FlaxLLaMAForCausalLM(FlaxLLaMAPreTrainedModel):
     module_class = FlaxLLaMAForCausalLMModule
 
-    def prepare_inputs_for_generation(self, input_ids, max_length, attention_mask: Optional[jnp.DeviceArray] = None):
+    def prepare_inputs_for_generation(self, input_ids, max_length, attention_mask: Optional[jnp.ndarray] = None):
         # initializing the cache
         batch_size, seq_length = input_ids.shape
 
