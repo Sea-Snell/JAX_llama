@@ -142,6 +142,7 @@ class FlaxLLaMAAttention(nn.Module):
         self.freqs_cis = precompute_freqs_cis(
             self.head_dim, 
             config.max_sequence_length * 2, 
+            theta=config.rope_theta,
             dtype=self.dtype, 
         )
     

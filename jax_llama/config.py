@@ -87,6 +87,7 @@ class LLaMAConfig(PretrainedConfig):
         attn_pdrop=0.0,
         tie_word_embeddings=False,
         gradient_checkpointing: bool = False, 
+        rope_theta: float=10000.0,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -105,6 +106,7 @@ class LLaMAConfig(PretrainedConfig):
         self.embd_pdrop = embd_pdrop
         self.attn_pdrop = attn_pdrop
         self.gradient_checkpointing = gradient_checkpointing
+        self.rope_theta = rope_theta
         super().__init__(
             pad_token_id=pad_token_id,
             bos_token_id=bos_token_id,

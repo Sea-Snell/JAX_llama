@@ -1,10 +1,12 @@
+from typing import Union
 from pathlib import Path
 import torch
 import json
 import numpy as np
 from jaxtyping import PyTree
 from jax_llama.config import LLaMAConfig
-from jax_llama.tokenizer import LLaMATokenizer
+from jax_llama.llama2_tokenizer import Tokenizer as LLaMA2Tokenizer
+from jax_llama.llama3_tokenizer import Tokenizer as LLaMA3Tokenizer
 from typing import Tuple, Optional
 from dataclasses import dataclass
 
@@ -18,6 +20,7 @@ class ModelArgs:
     multiple_of: int = 256  # make SwiGLU hidden layer size multiple of large power of 2
     ffn_dim_multiplier: Optional[float] = None
     norm_eps: float = 1e-5
+    rope_theta: float = 10000.0
 
     max_batch_size: int = 32
     max_seq_len: int = 2048
@@ -25,7 +28,7 @@ class ModelArgs:
 def config_from_params(args: ModelArgs) -> LLaMAConfig:
     intermediate_size = int(2 * (args.dim * 4) / 3)
     if args.ffn_dim_multiplier is not None:
-        hidden_dim = int(args.ffn_dim_multiplier * hidden_dim)
+        intermediate_size = int(args.ffn_dim_multiplier * intermediate_size)
     intermediate_size = args.multiple_of * ((intermediate_size + args.multiple_of - 1) // args.multiple_of)
     return LLaMAConfig(
         vocab_size=args.vocab_size, 
@@ -36,9 +39,10 @@ def config_from_params(args: ModelArgs) -> LLaMAConfig:
         num_key_value_heads=args.n_kv_heads,
         max_sequence_length=args.max_seq_len, 
         rms_norm_eps=args.norm_eps, 
+        rope_theta=args.rope_theta
     )
 
-def convert_llama_weights(ckpt_dir: str, tokenizer: LLaMATokenizer, max_seq_len: int=2048, verbose: bool=False) -> Tuple[PyTree[np.ndarray], LLaMAConfig]:
+def convert_llama_weights(ckpt_dir: str, tokenizer: Union[LLaMA2Tokenizer, LLaMA3Tokenizer], max_seq_len: int=2048, verbose: bool=False) -> Tuple[PyTree[np.ndarray], LLaMAConfig]:
     ckpt_paths = sorted(Path(ckpt_dir).glob("*.pth"))
     ckpts = {}
     for i, ckpt_path in enumerate(ckpt_paths):
