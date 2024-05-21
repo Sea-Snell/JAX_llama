@@ -7,7 +7,7 @@ from jax.sharding import NamedSharding
 from jax.experimental import mesh_utils
 import fire
 
-def load(ckpt_dir: str, tokenizer_path: str, is_llama3: bool, **model_kwargs) -> LLaMA:
+def load(ckpt_dir: str, tokenizer_path: str, is_llama3: bool, max_seq_length: int=2048, **model_kwargs) -> LLaMA:
     # setup jax mesh
     devices = mesh_utils.create_device_mesh((1, len(jax.devices())))
     mesh = Mesh(devices, axis_names=('dp', 'mp'))
@@ -18,7 +18,7 @@ def load(ckpt_dir: str, tokenizer_path: str, is_llama3: bool, **model_kwargs) ->
         tokenizer = LLaMA3Tokenizer(tokenizer_path)
     else:
         tokenizer = LLaMA2Tokenizer(tokenizer_path)
-    jax_params, jax_config = convert_llama_weights(ckpt_dir, tokenizer)
+    jax_params, jax_config = convert_llama_weights(ckpt_dir, tokenizer, max_seq_len=max_seq_length)
     with jax.default_device(jax.devices('cpu')[0]):
         jax_params = freeze(jax.tree_map(lambda x: jnp.asarray(x), jax_params))
     # shard params

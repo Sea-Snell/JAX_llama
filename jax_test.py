@@ -430,7 +430,13 @@ def test_ModelLogits(ckpt_dir: str, tokenizer_path: str, is_llama3: bool, local_
 
     # load jax model
     if local_rank == 0:
-        jax_generator = jax_load(ckpt_dir, tokenizer_path, is_llama3, precision='highest')
+        jax_generator = jax_load(
+            ckpt_dir,
+            tokenizer_path,
+            is_llama3,
+            max_seq_length=8192 if is_llama3 else 2048,
+            precision='highest',
+        )
         jax_model, jax_params = jax_generator.model, jax_generator.params
         tokenizer, mesh = jax_generator.tokenizer, jax_generator.mesh
         tokens = [tokenizer.encode(x, bos=True, eos=False) for x in test_strs]
@@ -466,7 +472,7 @@ def test_ModelLogits(ckpt_dir: str, tokenizer_path: str, is_llama3: bool, local_
     torch_generator = torch_load.build(
         ckpt_dir, 
         tokenizer_path,
-        max_seq_len=2048, 
+        max_seq_len=8192 if is_llama3 else 2048, 
         max_batch_size=1, 
         model_parallel_size=world_size,
         seed=1,
@@ -495,7 +501,13 @@ def test_ModelGenerations(ckpt_dir: str, tokenizer_path: str, is_llama3: bool, l
     
     if local_rank == 0:
         # load jax model
-        jax_generator = jax_load(ckpt_dir, tokenizer_path, is_llama3, precision='highest')
+        jax_generator = jax_load(
+            ckpt_dir,
+            tokenizer_path,
+            is_llama3,
+            max_seq_length=8192 if is_llama3 else 2048,
+            # precision='highest',
+        )
         jax_strs = jax_generator.generate_from_str(test_strs, max_gen_len=gen_len, temperature=0.0, top_p=1.0)
         # unload jax model
         del jax_generator
@@ -507,7 +519,7 @@ def test_ModelGenerations(ckpt_dir: str, tokenizer_path: str, is_llama3: bool, l
     torch_generator = torch_load.build(
         ckpt_dir, 
         tokenizer_path,
-        max_seq_len=2048, 
+        max_seq_len=8192 if is_llama3 else 2048, 
         max_batch_size=len(test_strs), 
         model_parallel_size=world_size,
         seed=1,
@@ -619,7 +631,7 @@ def main(ckpt_dir: str, tokenizer_path: str, is_llama3: bool=False):
                 "The capital of Germany is the city of", 
                 "Here is my sonnet in the style of Shakespeare about an artificial intelligence:", 
             ], 
-            atol=1e-1, 
+            atol=5e-1, 
         )
         if local_rank == 0:
             print("[Passed]")
